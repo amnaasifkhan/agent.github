@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Speech and Speech Recognition</title>
+    <script>
+        let recordedResponses = [];
+    
+        async function readTextFile(file) {
+            try {
+                const response = await fetch(file);
+                const text = await response.text();
+                return text;
+            } catch (error) {
+                console.error(`Error: ${error.message}`);
+                return null;
+            }
+        }
+    
+        function textToSpeechAndPlay(text) {
+            const speechSynthesis = window.speechSynthesis;
+            const utterance = new SpeechSynthesisUtterance(text);
+    
+            // Speak the text
+            speechSynthesis.speak(utterance);
+    
+            // Return the duration of the speech
+            return new Promise(resolve => {
+                utterance.onend = () => {
+                    resolve(utterance.duration * 1000); // Convert seconds to milliseconds
+                };
+            });
+        }
+    
+        async function recordResponse() {
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const recognizer = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                    recognizer.lang = 'en-US';
+                    recognizer.continuous = false;
+                    recognizer.interimResults = false;
+    
+                    return new Promise(resolve => {
+                        recognizer.onresult = (event) => {
+                            const transcript = event.results[0][0].transcript;
+                            console.log("You said:", transcript);
+                            recordedResponses.push(transcript); // Store the recorded response
+                            resolve(transcript);
+                        };
+    
+                        recognizer.onerror = (event) => {
+                            console.error(`Speech recognition error: ${event.error}`);
+                            resolve(null);
+                        };
+    
+                        recognizer.onend = () => {
+                            resolve(null);
+                        };
+    
+                        recognizer.start();
+    
+                        // Stop the recognizer after 5 seconds (adjust as needed)
+                        setTimeout(() => {
+                            recognizer.stop();
+                        }, 5000);
+                    });
+                } catch (error) {
+                    console.error(`Error: ${error.message}`);
+                    return null;
+                }
+            } else {
+                console.error('SpeechRecognition API not supported in this browser.');
+                return null;
+            }
+        }
+    
+        async function processLines(lines) {
+            for (const line of lines) {
+                console.log("Processing line:", line);
+    
+                // Text to speech
+                const duration = await textToSpeechAndPlay(line);
+    
+                // Wait for the duration of the speech
+                await new Promise(resolve => setTimeout(resolve, duration));
+    
+                // Record user response
+                const userResponse = await recordResponse();
+                if (userResponse !== null) {
+                    console.log("User Response:", userResponse);
+                }
+    
+                // Wait for 2 seconds (adjust as needed)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+    
+            // Display recorded responses at the end of the conversation
+            displayRecordedResponses();
+        }
+    
+        function displayRecordedResponses() {
+            const recordedResponsesList = document.getElementById('recordedResponses');
+            recordedResponsesList.innerHTML = '';
+    
+            recordedResponses.forEach(response => {
+                const listItem = document.createElement('li');
+                listItem.textContent = response;
+                recordedResponsesList.appendChild(listItem);
+            });
+        }
+    
+        // Function to start processing when the button is clicked
+        async function startProcessing() {
+            // Example usage:
+            const filePath = 'data.txt';  // Replace 'data.txt' with the path to your text file
+            const textContent = await readTextFile(filePath);
+            if (textContent !== null) {
+                // Split the string into lines
+                const lines = textContent.split('\n').filter(Boolean);
+                await processLines(lines);
+            }
+        }
+    </script>
+</head>
+<body onload="startProcessing()">
+
+<!-- Add a button to trigger the script -->
+<!--button onclick="startProcessing()">Start Processing</button>-->
+
+<!-- Display recorded responses -->
+<ul id="recordedResponses"></ul>
+
+</body>
+</html>
